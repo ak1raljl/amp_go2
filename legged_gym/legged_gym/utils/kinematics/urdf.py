@@ -99,6 +99,9 @@ def build_chain_from_urdf(data):
         link2_frame
 
     """
+  # Convert string to bytes if needed to handle encoding declaration
+  if isinstance(data, str):
+    data = data.encode('utf-8')
   robot = URDF.from_xml_string(data)
   lmap = robot.link_map
   joints = robot.joints
@@ -141,6 +144,9 @@ def build_serial_chain_from_urdf(data, end_link_name, root_link_name=""):
     chain.SerialChain
         SerialChain object created from URDF.
     """
+  # Ensure data is bytes to handle XML encoding declaration
+  if isinstance(data, str):
+    data = data.encode('utf-8')
   urdf_chain = build_chain_from_urdf(data)
   return chain.SerialChain(
       urdf_chain, end_link_name + "_frame",
