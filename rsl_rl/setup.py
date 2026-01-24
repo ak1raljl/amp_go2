@@ -1,0 +1,13 @@
+from setuptools import setup, find_packages
+
+
+setup(name='rsl_rl',
+      packages=find_packages(),
+      description='Fast and simple RL algorithms implemented in pytorch',
+      python_requires='>=3.6',
+      install_requires=[
+            "torch>=1.4.0",
+            "torchvision>=0.5.0",
+            "numpy>=1.16.4"
+      ],
+    )
