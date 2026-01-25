@@ -46,6 +46,17 @@ class Go2AMPCfg( LeggedRobotCfg ):
     class terrain( LeggedRobotCfg.terrain ):
         mesh_type = 'plane'
         measure_heights = False
+        # mesh_type = 'trimesh'
+        # border_size = 15 # [m]
+        # # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete, flat]
+        # curriculum = True
+        # terrain_proportions = [0.1, 0.1, 0.3, 0.3, 0.2]
+        # # terrain_proportions = [0.5, 0.5, 0.0, 0.0, 0.0]
+        # terrain_length = 8 
+        # terrain_width = 8 
+        # num_rows = 10 # number of terrain rows (levels)
+        # num_cols = 20 # number of terrain cols (types)
+        # measure_heights = False
 
     class asset( LeggedRobotCfg.asset ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
@@ -80,24 +91,25 @@ class Go2AMPCfg( LeggedRobotCfg ):
 
     class rewards( LeggedRobotCfg.rewards ):
         soft_dof_pos_limit = 0.9
-        base_height_target = 0.25
+        base_height_target = 0.35
+        only_positive_rewards = True
         class scales( LeggedRobotCfg.rewards.scales ):
-            termination = 0.0
+            termination = -0.0
             tracking_lin_vel = 1.5 * 1. / (.005 * 6)
             tracking_ang_vel = 0.5 * 1. / (.005 * 6)
-            lin_vel_z = 0.0
-            ang_vel_xy = 0.0
-            orientation = 0.0
-            torques = 0.0
-            dof_vel = 0.0
-            dof_acc = 0.0
-            base_height = 0.0
+            lin_vel_z = -0.0
+            ang_vel_xy = -0.05
+            orientation = -0.5
+            torques = -0.000005
+            dof_vel = -1e-6
+            dof_acc = -1e-7
+            base_height = -0.0
             feet_air_time =  0.0
-            collision = 0.0
-            feet_stumble = 0.0
-            action_rate = 0.0
-            stand_still = 0.0
-            dof_pos_limits = 0.0
+            collision = -0.5
+            feet_stumble = -0.0
+            action_rate = -0.01
+            stand_still = -0.5
+            dof_pos_limits = -5.0
 
     class commands:
         curriculum = False
@@ -121,7 +133,7 @@ class Go2AMPCfgPPO( LeggedRobotCfgPPO ):
         experiment_name = 'amp_go2'
         max_iterations = 500000 # number of policy updates
 
-        amp_reward_coef = 2.0
+        amp_reward_coef = 0.5
         amp_motion_files = MOTION_FILES
         amp_num_preload_transitions = 2000000
         amp_task_reward_lerp = 0.3

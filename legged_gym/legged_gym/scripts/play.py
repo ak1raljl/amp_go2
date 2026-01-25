@@ -52,6 +52,7 @@ def play(args):
     env_cfg.domain_rand.randomize_gains = False
     env_cfg.domain_rand.randomize_base_mass = False
     train_cfg.runner.amp_num_preload_transitions = 1
+    # env_cfg.terrain.terrain_proportions = [0.0, 1.0, 0.0, 0.0, 0.0]  # 100%平地
 
     # env_cfg.commands.ranges.lin_vel_x = [-2.0, 5.0] # min max [m/s]
     # env_cfg.commands.ranges.lin_vel_y = [-2.0, 2.0]   # min max [m/s]
@@ -121,6 +122,7 @@ def play(args):
                     logger.log_rewards(infos["episode"], num_episodes)
         elif i==stop_rew_log:
             logger.print_rewards()
+
 
 if __name__ == '__main__':
     EXPORT_POLICY = True
