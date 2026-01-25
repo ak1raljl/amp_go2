@@ -18,7 +18,8 @@ import pybullet
 import pybullet_data as pd
 
 from retarget_utils import *
-import retarget_config as config
+import retarget_config_go2 as config
+# import retarget_config_a1 as config
 
 POS_SIZE = 3
 ROT_SIZE = 4
@@ -297,8 +298,8 @@ def retarget_root_pose(ref_joint_pos):
 def retarget_pose(robot, default_pose, ref_joint_pos):
     # 获取关节限制
     joint_lim_low, joint_lim_high = get_joint_limits(robot)
-    joint_lim_low = [i * -1 for i in joint_lim_high]
-    joint_lim_high = [i * -1 for i in joint_lim_high]
+    # joint_lim_low = [i * -1 for i in joint_lim_high]
+    # joint_lim_high = [i * -1 for i in joint_lim_high]
     # print(joint_lim_low)
     # print(joint_lim_high)
 
