@@ -1,11 +1,8 @@
 from legged_gym.envs.go2.go2_amp_config import Go2AMPCfg
-import math
 import numpy as np
 import mujoco, mujoco.viewer
-from legged_gym import LEGGED_GYM_ROOT_DIR
 from scipy.spatial.transform import Rotation as R
 import torch
-import keyword
 from pynput import keyboard
 
 x_vel_cmd, y_vel_cmd, yaw_vel_cmd = 0.0, 0.0, 0.0
@@ -13,6 +10,13 @@ x_vel_max, y_vel_max, yaw_vel_max = 1.5, 1.0, 3.0
 
 joystick_use = True
 joystick_opened = False
+
+JOINT_ORDER = [
+    "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+    "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+    "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+    "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
+]
 def on_press(key):
     global x_vel_cmd, y_vel_cmd, yaw_vel_cmd
     try:
@@ -55,16 +59,16 @@ def quaternion_to_euler_array(quat):
     
     return np.array([roll_x, pitch_y, yaw_z])
 
-def get_obs(data):
+def get_obs(data, joint_qpos_idx, joint_dof_idx):
     '''Extracts an observation from the mujoco data structure
     '''
     base_pos = data.qpos[0:3].astype(np.double)
-    dof_pos = data.qpos[7:19].astype(np.double)
-    dof_vel = data.qvel[6:].astype(np.double)
+    dof_pos = data.qpos[joint_qpos_idx].astype(np.double)
+    dof_vel = data.qvel[joint_dof_idx].astype(np.double)
     quat = data.qpos[3:7].astype(np.double)[[1, 2, 3, 0]]
     r = R.from_quat(quat)
     base_lin_vel = r.apply(data.qvel[:3], inverse=True).astype(np.double)
-    base_ang_vel = data.qvel[3:6].astype(np.double)
+    base_ang_vel = r.apply(data.qvel[3:6], inverse=True).astype(np.double)
     
     return base_pos, dof_pos, dof_vel, quat, base_lin_vel, base_ang_vel
 
@@ -84,9 +88,20 @@ def run_mujoco(policy, cfg):
     model.opt.timestep = cfg.sim_config.dt
     data = mujoco.MjData(model)
 
+    joint_ids = []
+    for name in JOINT_ORDER:
+        jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, name)
+        if jid == -1:
+            raise ValueError(f"Joint not found in model: {name}")
+        joint_ids.append(jid)
+    joint_qpos_idx = np.array([model.jnt_qposadr[jid] for jid in joint_ids], dtype=int)
+    joint_dof_idx = np.array([model.jnt_dofadr[jid] for jid in joint_ids], dtype=int)
+    actuator_for_joint = {int(model.actuator_trnid[i][0]): i for i in range(model.nu)}
+    actuator_idx = np.array([actuator_for_joint[jid] for jid in joint_ids], dtype=int)
+
     data.qpos[2] = 0.42  # initial height
     default_dof_pos = cfg.robot_config.default_dof_pos
-    data.qpos[7:19] = default_dof_pos
+    data.qpos[joint_qpos_idx] = default_dof_pos
     mujoco.mj_forward(model, data)
 
     viewer = mujoco.viewer.launch_passive(model, data)
@@ -100,7 +115,9 @@ def run_mujoco(policy, cfg):
     print(f"观测维度: {cfg.env.num_observations}")
 
     for step in range(int(cfg.sim_config.sim_duration / cfg.sim_config.dt)):
-        base_pos, dof_pos, dof_vel, quat, base_lin_vel, base_ang_vel = get_obs(data)
+        base_pos, dof_pos, dof_vel, quat, base_lin_vel, base_ang_vel = get_obs(
+            data, joint_qpos_idx, joint_dof_idx
+        )
         # 1000hz -> 100hz
         if count_lowlevel % cfg.sim_config.decimation == 0:
             obs = np.zeros([1, cfg.env.num_observations], dtype=np.float32)
@@ -130,7 +147,9 @@ def run_mujoco(policy, cfg):
             tau = pd_control(target_dof_pos, dof_pos, cfg.robot_config.kps,
                             target_dof_vel, dof_vel, cfg.robot_config.kds, cfg)
         tau = np.clip(tau, -cfg.robot_config.tau_limit, cfg.robot_config.tau_limit)
-        data.ctrl = tau
+        ctrl = np.zeros(model.nu, dtype=np.double)
+        ctrl[actuator_idx] = tau
+        data.ctrl = ctrl
 
         mujoco.mj_step(model, data)
         viewer.sync()
@@ -141,8 +160,8 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Deployment script')
-    parser.add_argument('--load_model', type=str, default='/home/ak1ra/rl_amp/legged_gym/logs/amp_go2/exported/policies/policy_1.pt')
-    parser.add_argument('--mujoco_model', type=str, default='/home/ak1ra/Quadruped/go2_sim2sim/go2_description/scene_terrain.xml')
+    parser.add_argument('--load_model', type=str, default='/home/ak1ra/rl_amp/legged_gym/logs/amp_go2_rough/exported/policies/policy_1.pt')
+    parser.add_argument('--mujoco_model', type=str, default='/home/ak1ra/rl_amp/sim2sim_mujoco/go2_description/scene_terrain.xml')
     parser.add_argument('--terrain', action='store_true', help='enable terrain')
     args = parser.parse_args()
 
@@ -159,9 +178,9 @@ if __name__ == '__main__':
             tau_limit = 45 * np.ones(12, dtype=np.double)
             default_dof_pos = np.array([
                 0.0, 0.8, -1.5,   # FL
-                0.0, 0.8, -1.5,   # RL
                 -0.0, 0.8, -1.5,  # FR
-                -0.0, 0.8, -1.5,  # RR
+                0.0, 1.0, -1.5,   # RL
+                -0.0, 1.0, -1.5,  # RR
             ], dtype=np.double)
         
     policy = torch.jit.load(args.load_model)

@@ -2,8 +2,8 @@ import glob
 
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
-MOTION_FILES = glob.glob('datasets/mocap_motions_go2/*')
-
+# MOTION_FILES = glob.glob('datasets/mocap_motions_go2/*')
+MOTION_FILES = glob.glob('datasets/go2_motion/*')
 class Go2AMPCfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env ):
         num_envs = 4096
@@ -44,19 +44,19 @@ class Go2AMPCfg( LeggedRobotCfg ):
         decimation = 4
 
     class terrain( LeggedRobotCfg.terrain ):
-        mesh_type = 'plane'
-        measure_heights = False
-        # mesh_type = 'trimesh'
-        # border_size = 15 # [m]
-        # # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete, flat]
-        # curriculum = True
-        # terrain_proportions = [0.1, 0.1, 0.3, 0.3, 0.2]
-        # # terrain_proportions = [0.5, 0.5, 0.0, 0.0, 0.0]
-        # terrain_length = 8 
-        # terrain_width = 8 
-        # num_rows = 10 # number of terrain rows (levels)
-        # num_cols = 20 # number of terrain cols (types)
+        # mesh_type = 'plane'
         # measure_heights = False
+        mesh_type = 'trimesh'
+        border_size = 15 # [m]
+        # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete, flat]
+        curriculum = True
+        terrain_proportions = [0.1, 0.1, 0.3, 0.3, 0.2]
+        # terrain_proportions = [0.5, 0.5, 0.0, 0.0, 0.0]
+        terrain_length = 8 
+        terrain_width = 8 
+        num_rows = 10 # number of terrain rows (levels)
+        num_cols = 20 # number of terrain cols (types)
+        measure_heights = False
 
     class asset( LeggedRobotCfg.asset ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2.urdf'
@@ -90,26 +90,45 @@ class Go2AMPCfg( LeggedRobotCfg ):
             height_measurements = 0.1
 
     class rewards( LeggedRobotCfg.rewards ):
+        # soft_dof_pos_limit = 0.9
+        # base_height_target = 0.35
+        # only_positive_rewards = True
+        # class scales( LeggedRobotCfg.rewards.scales ):
+        #     termination = -0.0
+        #     tracking_lin_vel = 1.5 * 1. / (.005 * 6)
+        #     tracking_ang_vel = 0.5 * 1. / (.005 * 6)
+        #     lin_vel_z = -0.0
+        #     ang_vel_xy = -1.5
+        #     orientation = -0.5
+        #     torques = -0.000005
+        #     dof_vel = -1e-6
+        #     dof_acc = -1e-7
+        #     base_height = -0.0
+        #     feet_air_time =  1.5
+        #     collision = -0.5
+        #     feet_stumble = -0.0
+        #     action_rate = -0.01
+        #     stand_still = -0.5
+        #     dof_pos_limits = -5.0
         soft_dof_pos_limit = 0.9
         base_height_target = 0.35
-        only_positive_rewards = True
         class scales( LeggedRobotCfg.rewards.scales ):
-            termination = -0.0
+            termination = 0.0
             tracking_lin_vel = 1.5 * 1. / (.005 * 6)
             tracking_ang_vel = 0.5 * 1. / (.005 * 6)
-            lin_vel_z = -0.0
-            ang_vel_xy = -0.05
-            orientation = -0.5
-            torques = -0.000005
-            dof_vel = -1e-6
-            dof_acc = -1e-7
+            lin_vel_z = 0.0
+            ang_vel_xy = 0.0
+            orientation = 0.0
+            torques = 0.0
+            dof_vel = 0.0
+            dof_acc = 0.0
             base_height = -0.0
-            feet_air_time =  0.0
+            feet_air_time =  1.0
             collision = -0.5
-            feet_stumble = -0.0
-            action_rate = -0.01
-            stand_still = -0.5
-            dof_pos_limits = -5.0
+            feet_stumble = 0.0
+            action_rate = 0.0
+            stand_still = -1.5
+            dof_pos_limits = 0.0
 
     class commands:
         curriculum = False
@@ -118,8 +137,8 @@ class Go2AMPCfg( LeggedRobotCfg ):
         resampling_time = 10. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
         class ranges:
-            lin_vel_x = [-1.0, 2.0] # min max [m/s]
-            lin_vel_y = [-0.3, 0.3]   # min max [m/s]
+            lin_vel_x = [-1.2, 2.0] # min max [m/s]
+            lin_vel_y = [-0.6, 0.6]   # min max [m/s]
             ang_vel_yaw = [-1.57, 1.57]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
@@ -130,7 +149,7 @@ class Go2AMPCfgPPO( LeggedRobotCfgPPO ):
 
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
-        experiment_name = 'amp_go2'
+        experiment_name = 'amp_go2_rough'
         max_iterations = 500000 # number of policy updates
 
         amp_reward_coef = 0.5
