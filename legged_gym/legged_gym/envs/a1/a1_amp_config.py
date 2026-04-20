@@ -40,7 +40,6 @@ class A1AMPCfg( LeggedRobotCfg ):
         num_observations = 42
         num_privileged_obs = 48
         reference_state_initialization = True
-        reference_state_initialization_prob = 0.85
         amp_motion_files = MOTION_FILES
         ee_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
 

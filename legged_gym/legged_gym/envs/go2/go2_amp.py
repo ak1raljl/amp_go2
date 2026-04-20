@@ -46,7 +46,7 @@ from legged_gym.envs.base.base_task import BaseTask
 from legged_gym.utils.terrain import Terrain
 from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_float
 from legged_gym.utils.helpers import class_to_dict
-from .legged_robot_config import LeggedRobotCfg
+from ..base.legged_robot_config import LeggedRobotCfg
 import legged_gym.utils.kinematics.urdf as pk
 from rsl_rl.datasets.motion_loader import AMPLoader
 
@@ -182,6 +182,13 @@ class LeggedRobot(BaseTask):
         """
         if len(env_ids) == 0:
             return
+        
+        ### Domain randomizations ###
+        # randomization of the motor zero calibration for real machine
+        if self.cfg.domain_rand.randomize_motor_zero_offset:
+            self.motor_zero_offsets[env_ids] = torch_rand_float(self.cfg.domain_rand.motor_zero_offset_range[0], self.cfg.domain_rand.motor_zero_offset_range[1], (len(env_ids), self.num_actions), device=self.device)
+        
+        
         # update curriculum
         if self.cfg.terrain.curriculum:
             self._update_terrain_curriculum(env_ids)
@@ -191,9 +198,25 @@ class LeggedRobot(BaseTask):
         
         # reset robot states
         if self.cfg.env.reference_state_initialization:
-            frames = self.amp_loader.get_full_frame_batch(len(env_ids))
-            self._reset_dofs_amp(env_ids, frames)
-            self._reset_root_states_amp(env_ids, frames)
+            prob = self.cfg.env.reference_state_initialization_prob
+            if prob >= 1.0:
+                frames = self.amp_loader.get_full_frame_batch(len(env_ids))
+                self._reset_dofs_amp(env_ids, frames)
+                self._reset_root_states_amp(env_ids, frames)
+            elif prob <= 0.0:
+                self._reset_dofs(env_ids)
+                self._reset_root_states(env_ids)
+            else:
+                use_ref = torch.rand(len(env_ids), device=self.device) < prob
+                ref_env_ids = env_ids[use_ref]
+                default_env_ids = env_ids[~use_ref]
+                if len(ref_env_ids) > 0:
+                    frames = self.amp_loader.get_full_frame_batch(len(ref_env_ids))
+                    self._reset_dofs_amp(ref_env_ids, frames)
+                    self._reset_root_states_amp(ref_env_ids, frames)
+                if len(default_env_ids) > 0:
+                    self._reset_dofs(default_env_ids)
+                    self._reset_root_states(default_env_ids)
         else:
             self._reset_dofs(env_ids)
             self._reset_root_states(env_ids)
@@ -250,6 +273,7 @@ class LeggedRobot(BaseTask):
 
         self.obs_buf = torch.cat((
                                     self.base_ang_vel  * self.obs_scales.ang_vel, # 3
+                                    self.projected_gravity, # 3
                                     self.commands[:, :3] * self.commands_scale, # 3
                                     (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos, # 12
                                     self.dof_vel * self.obs_scales.dof_vel, # 12
@@ -342,6 +366,10 @@ class LeggedRobot(BaseTask):
 
             for s in range(len(props)):
                 props[s].friction = self.friction_coeffs[env_id]
+        if self.cfg.domain_rand.randomize_restitution:
+            rand_restitution = np.random.uniform(self.cfg.domain_rand.restitution_range[0], self.cfg.domain_rand.restitution_range[1])
+            for s in range(len(props)):
+                props[s].restitution = rand_restitution
         return props
 
     def _process_dof_props(self, props, env_id):
@@ -383,6 +411,16 @@ class LeggedRobot(BaseTask):
         if self.cfg.domain_rand.randomize_base_mass:
             rng = self.cfg.domain_rand.added_mass_range
             props[0].mass += np.random.uniform(rng[0], rng[1])
+        # randomize link masses
+        if self.cfg.domain_rand.randomize_link_mass:
+            self.multiplied_link_masses_ratio = torch_rand_float(self.cfg.domain_rand.multiplied_link_mass_range[0], self.cfg.domain_rand.multiplied_link_mass_range[1], (1, self.num_bodies-1), device=self.device)
+            for i in range(1, len(props)):
+                props[i].mass *= self.multiplied_link_masses_ratio[0,i-1]
+        # randomize base com
+        if self.cfg.domain_rand.randomize_base_com:
+            self.added_base_com = torch_rand_float(self.cfg.domain_rand.added_base_com_range[0], self.cfg.domain_rand.added_base_com_range[1], (1, 3), device=self.device)
+            props[0].com += gymapi.Vec3(self.added_base_com[0, 0], self.added_base_com[0, 1],
+                                    self.added_base_com[0, 2])
         return props
 
     def _post_physics_step_callback(self):
@@ -441,7 +479,7 @@ class LeggedRobot(BaseTask):
             d_gains = self.d_gains
 
         if control_type=="P":
-            torques = p_gains*(actions_scaled + self.default_dof_pos - self.dof_pos) - d_gains*self.dof_vel
+            torques = p_gains*(actions_scaled + self.default_dof_pos - self.dof_pos + self.motor_zero_offsets) - d_gains*self.dof_vel
         elif control_type=="V":
             torques = p_gains*(actions_scaled - self.dof_vel) - d_gains*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
         elif control_type=="T":
@@ -584,20 +622,12 @@ class LeggedRobot(BaseTask):
         self.add_noise = self.cfg.noise.add_noise
         noise_scales = self.cfg.noise.noise_scales
         noise_level = self.cfg.noise.noise_level
-        # noise_vec[:3] = noise_scales.lin_vel * noise_level * self.obs_scales.lin_vel
-        # noise_vec[3:6] = noise_scales.ang_vel * noise_level * self.obs_scales.ang_vel
-        # noise_vec[6:9] = noise_scales.gravity * noise_level
-        # noise_vec[9:12] = 0. # commands
-        # noise_vec[12:24] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
-        # noise_vec[24:36] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
-        # noise_vec[36:48] = 0. # previous actions
-        # if self.cfg.terrain.measure_heights:
-        #     noise_vec[48:235] = noise_scales.height_measurements* noise_level * self.obs_scales.height_measurements
         noise_vec[:3] = noise_scales.ang_vel * noise_level * self.obs_scales.ang_vel
-        noise_vec[3:6] = 0.
-        noise_vec[6:18] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
-        noise_vec[18:30] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
-        noise_vec[30:42] = 0. # previous actions
+        noise_vec[3:6] = noise_scales.gravity * noise_level
+        noise_vec[6:9] = 0. # commands
+        noise_vec[9:21] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
+        noise_vec[21:33] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
+        noise_vec[33:45] = 0. # previous actions
         return noise_vec
 
     #----------------------------------------
@@ -643,9 +673,7 @@ class LeggedRobot(BaseTask):
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         if self.cfg.terrain.measure_heights:
             self.height_points = self._init_height_points()
-            self.measured_heights = self._get_heights()
-        
-        # self.measured_heights = 0
+        self.measured_heights = 0
 
         # joint positions offsets and PD gains
         self.default_dof_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
@@ -804,6 +832,7 @@ class LeggedRobot(BaseTask):
         self.base_init_state = to_torch(base_init_state_list, device=self.device, requires_grad=False)
         start_pose = gymapi.Transform()
         start_pose.p = gymapi.Vec3(*self.base_init_state[:3])
+        self.motor_zero_offsets = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
 
         self._get_env_origins()
         env_lower = gymapi.Vec3(0., 0., 0.)
@@ -964,10 +993,19 @@ class LeggedRobot(BaseTask):
         # Penalize non flat base orientation
         return torch.sum(torch.square(self.projected_gravity[:, :2]), dim=1)
 
+    def _get_base_height(self):
+        if not self.cfg.terrain.measure_heights:
+            return self.root_states[:, 2]
+        # 根据高度扫描点计算base link到地面估计高度
+        estimated_ground_z = self.measured_heights.mean(dim=1)
+
+        base_z = self.root_states[:, 2] 
+        return base_z - estimated_ground_z
+
     def _reward_base_height(self):
-        # Penalize base height away from target
-        base_height = torch.mean(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1)
-        return torch.square(base_height - self.cfg.rewards.base_height_target)
+        base_height = self._get_base_height()
+        rew = torch.square(base_height - self.cfg.rewards.base_height_target)
+        return rew
     
     def _reward_torques(self):
         # Penalize torques
