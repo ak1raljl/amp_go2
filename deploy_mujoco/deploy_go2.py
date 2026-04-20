@@ -46,16 +46,16 @@ def pd_control(target_q, q, kp, target_dq, dq, kd):
     """Calculates torques from position commands"""
     return (target_q - q) * kp + (target_dq - dq) * kd
 
-def get_keyboard_command(keys, max_cmd):
+def get_keyboard_command(keys, cmd_limits):
     cmd_x = 0.0
     cmd_y = 0.0
     cmd_yaw = 0.0
-    if keys[pygame.K_w]:    cmd_x += max_cmd[0]
-    if keys[pygame.K_s]:  cmd_x -= max_cmd[0]
-    if keys[pygame.K_a]:  cmd_y += max_cmd[1]
-    if keys[pygame.K_d]: cmd_y -= max_cmd[1]
-    if keys[pygame.K_q]:     cmd_yaw += max_cmd[2]
-    if keys[pygame.K_e]:     cmd_yaw -= max_cmd[2]
+    if keys[pygame.K_w]:    cmd_x += cmd_limits[0, 1]
+    if keys[pygame.K_s]:    cmd_x += cmd_limits[0, 0]
+    if keys[pygame.K_a]:    cmd_y += cmd_limits[1, 1]
+    if keys[pygame.K_d]:    cmd_y += cmd_limits[1, 0]
+    if keys[pygame.K_q]:    cmd_yaw += cmd_limits[2, 1]
+    if keys[pygame.K_e]:    cmd_yaw += cmd_limits[2, 0]
     return np.array([cmd_x, cmd_y, cmd_yaw], dtype=np.float32)
 
 if __name__ == "__main__":
@@ -95,6 +95,11 @@ if __name__ == "__main__":
         num_obs = config["num_obs"]
 
         cmd = np.array(config["cmd_init"], dtype=np.float32)
+        if "cmd_range" in config:
+            cmd_limits = np.array(config["cmd_range"], dtype=np.float32)
+        else:
+            max_cmd = np.array(config["max_cmd"], dtype=np.float32)
+            cmd_limits = np.stack((-max_cmd, max_cmd), axis=1)
 
         idx_model2mj = idx_mj2model = list(range(num_actions))
         if 'mujoco_joint_names' in config and 'model_joint_names' in config:
@@ -162,7 +167,7 @@ if __name__ == "__main__":
             if counter % control_decimation == 0:
                 pygame.event.pump()
                 keys = pygame.key.get_pressed()
-                cmd = get_keyboard_command(keys, config["max_cmd"])
+                cmd = get_keyboard_command(keys, cmd_limits)
                 show_str += f"Cmd: Vx={cmd[0]:.2f}, Vy={cmd[1]:.2f}, Wz={cmd[2]:.2f}"
                 print(show_str, end='\r')
 
@@ -233,4 +238,3 @@ if __name__ == "__main__":
     if save_video:
         print(f"Video saved successfully to {video_path}")
         writer.close()
-
