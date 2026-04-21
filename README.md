@@ -1,8 +1,16 @@
 <div align="center">
     <h1 align="center">AMP GO2</h1>
 </div>
-
+<div align="center">
 AMP implementation for go2 edu
+</div>
+<div align="center">
+
+| <div align="center"> Isaac Gym </div> | <div align="center"> Mujoco </div> |
+|--- | --- |
+| ![isaacgym eval](isaacgym.png)  | ![mujoco eval](mujoco.png) 
+</div>
+
 
 **reference code:** [Amp for Hardware](https://github.com/escontra/AMP_for_hardware) , [rl_amp](https://github.com/fan-ziqi/rl_amp)
 
