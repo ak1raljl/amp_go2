@@ -196,13 +196,10 @@ class PPO:
                         expert_next_state = self.amp_normalizer.normalize_torch(expert_next_state, self.device)
                 policy_d = self.discriminator(torch.cat([policy_state, policy_next_state], dim=-1))
                 expert_d = self.discriminator(torch.cat([expert_state, expert_next_state], dim=-1))
-                expert_loss = torch.nn.MSELoss()(
-                    expert_d, torch.ones(expert_d.size(), device=self.device))
-                policy_loss = torch.nn.MSELoss()(
-                    policy_d, -1 * torch.ones(policy_d.size(), device=self.device))
+                expert_loss = torch.nn.MSELoss()(expert_d, torch.ones(expert_d.size(), device=self.device))
+                policy_loss = torch.nn.MSELoss()(policy_d, -1 * torch.ones(policy_d.size(), device=self.device))
                 amp_loss = 0.5 * (expert_loss + policy_loss)
-                grad_pen_loss = self.discriminator.compute_grad_pen(
-                    expert_state, expert_next_state, lambda_=10)
+                grad_pen_loss = self.discriminator.compute_grad_pen(expert_state, expert_next_state, lambda_=10)
 
                 # Compute total loss.
                 loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() + amp_loss + grad_pen_loss

@@ -98,15 +98,15 @@ class Go2AMPCfg( LeggedRobotCfg ):
         soft_dof_pos_limit = 0.9
         base_height_target = 0.38
         only_positive_rewards = False
-        tracking_sigma = 0.15
+        tracking_sigma = 0.25
         class scales( LeggedRobotCfg.rewards.scales ):
-            tracking_lin_vel = 1.5
-            tracking_ang_vel = 1.0
-            lin_vel_z = -2.0
+            tracking_lin_vel = 1.5 * 1. / (.005 * 6)
+            tracking_ang_vel = 0.5 * 1. / (.005 * 6)
+            lin_vel_z = -1.0
             ang_vel_xy = -0.05
             dof_acc = -2.5e-7
             torques = -1e-4
-            base_height = -1.0
+            base_height = -0.3
             action_rate = -0.01
             collision = -1.0
             dof_pos_limits = -2.0
@@ -145,10 +145,10 @@ class Go2AMPCfgPPO( LeggedRobotCfgPPO ):
         max_iterations = 500000 # number of policy updates
         save_interval = 2000 # number of policy updates
 
-        amp_reward_coef = 0.5
+        amp_reward_coef = 0.2
         amp_motion_files = MOTION_FILES
         amp_num_preload_transitions = 2000000
-        amp_task_reward_lerp = 0.5
+        amp_task_reward_lerp = 0.8
         amp_discr_hidden_dims = [1024, 512]
 
         min_normalized_std = [0.01, 0.01, 0.01] * 4
