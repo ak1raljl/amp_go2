@@ -92,7 +92,7 @@ python legged_gym/legged_gym/scripts/train.py --task=go2_amp
 -  To run on CPU add following arguments: `--sim_device=cpu`, `--rl_device=cpu` (sim on CPU and rl on GPU is possible).
 -  To run headless (no rendering) add `--headless`.
 - **Important**: To improve performance, once the training starts press `v` to stop the rendering. You can then enable it later to check the progress.
-- The trained policy is saved in `issacgym_anymal/logs/<experiment_name>/<date_time>_<run_name>/model_<iteration>.pt`. Where `<experiment_name>` and `<run_name>` are defined in the train config.
+- The trained policy is saved in `legged_gym/logs/<experiment_name>/<date_time>_<run_name>/model_<iteration>.pt`. Where `<experiment_name>` and `<run_name>` are defined in the train config.
 -  The following command line arguments override the values set in the config files:
     - --task TASK: Task name.
     - --resume:   Resume training from a checkpoint
@@ -103,3 +103,78 @@ python legged_gym/legged_gym/scripts/train.py --task=go2_amp
     - --num_envs NUM_ENVS:  Number of environments to create.
     - --seed SEED:  Random seed.
     - --max_iterations MAX_ITERATIONS:  Maximum number of training iterations.
+
+
+### Play ###
+```bash
+python legged_gym/legged_gym/scripts/play.py --task=go2_amp
+```
+
+- `play.py` will automatically load the latest run and latest checkpoint under `legged_gym/logs/go2_amp/`.
+- If you want to load a specific checkpoint, you can specify `load_run` and `checkpoint`:
+
+```bash
+python legged_gym/legged_gym/scripts/play.py \
+  --task=go2_amp \
+  --load_run Apr20_12-00-00_flat \
+  --checkpoint 4000
+```
+
+- During play, the script disables noise / push / friction randomization and reduces the number of envs, so it is more suitable for visualization than training.
+- `play.py` also exports a TorchScript policy to:
+
+```bash
+legged_gym/logs/go2_amp/exported/policies/policy_1.pt
+```
+
+- This exported policy is used directly by the MuJoCo Sim2Sim script below.
+
+### Sim2Sim ###
+
+This repository provides Isaac Gym policy replay in MuJoCo through `deploy_mujoco/deploy_go2.py`.
+
+1. Install additional dependencies:
+
+```bash
+pip install mujoco pygame pyyaml imageio
+```
+
+2. Make sure the TorchScript policy exists. The easiest way is to run `play.py` once after training, which will export:
+
+```bash
+legged_gym/logs/go2_amp/exported/policies/policy_1.pt
+```
+
+3. Run MuJoCo Sim2Sim from the repository root:
+
+```bash
+python deploy_mujoco/deploy_go2.py
+```
+
+- Keyboard control:
+  - `W / S`: forward / backward
+  - `A / D`: left / right
+  - `Q / E`: yaw left / yaw right
+
+- Save video:
+
+```bash
+python deploy_mujoco/deploy_go2.py --save-video
+```
+
+- Main config file: `deploy_mujoco/configs/go2.yaml`
+  - `policy_path`: exported TorchScript policy path
+  - `xml_path`: MuJoCo scene file
+  - `simulation_dt` and `control_decimation`: control frequency
+  - `cmd_range`: keyboard command limits
+
+- Available MuJoCo scenes can be switched by changing `xml_path`, for example:
+  - `deploy_mujoco/go2_description/flat.xml`
+  - `deploy_mujoco/go2_description/stairs.xml`
+  - `deploy_mujoco/go2_description/cross_slope.xml`
+  - `deploy_mujoco/go2_description/race_track.xml`
+
+- `go2.yaml` should stay consistent with the training config, especially `num_obs`, `action_scale`, `kps`, `kds`, `default_angles`, and joint order. If these values do not match the Isaac Gym side, MuJoCo replay will behave incorrectly.
+
+### Sim2Real ###
+refer to my sim2real repository [go2_sim2sim_deploy](https://github.com/ak1raljl/go2_sim2sim_deploy)
