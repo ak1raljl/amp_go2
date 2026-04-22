@@ -36,8 +36,7 @@ cd isaacgym/python && pip install -e .
 ```
 - Try running an example `cd examples && python 1080_balls_of_solitude.py`
 - For troubleshooting check docs `isaacgym/docs/index.html`
-4. Install rsl_rl (PPO implementation)
-- Clone https://github.com/leggedrobotics/rsl_rl
+4. Install rsl_rl
 ```bash
 cd rsl_rl && pip install -e .
 ``` 
