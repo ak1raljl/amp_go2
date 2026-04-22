@@ -46,6 +46,10 @@ cd rsl_rl && git checkout v1.0.2 && pip install -e .
 git clone https://github.com/ak1raljl/amp_go2.git
 cd legged_gym && pip install -e .
 ```
+6. dependency
+```bash
+pip install tensorboard pybullet==3.2.7 lxml==6.0.2 transformations==2022.9.26
+```
 
 ### Dataset ###
 

@@ -100,8 +100,8 @@ class Go2AMPCfg( LeggedRobotCfg ):
         only_positive_rewards = False
         tracking_sigma = 0.25
         class scales( LeggedRobotCfg.rewards.scales ):
-            tracking_lin_vel = 1.5 * 1. / (.005 * 6)
-            tracking_ang_vel = 0.5 * 1. / (.005 * 6)
+            tracking_lin_vel = 4.0 # 1.5 * 1. / (.005 * 6)
+            tracking_ang_vel = 2.0 # 0.5 * 1. / (.005 * 6)
             lin_vel_z = -1.0
             ang_vel_xy = -0.05
             dof_acc = -2.5e-7
