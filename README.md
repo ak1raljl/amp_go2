@@ -30,7 +30,7 @@ conda activate go2_amp
 pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 ```
 4. Install Isaac Gym
-- Download and install Isaac Gym Preview 3 (Preview 2 will not work!) from https://developer.nvidia.com/isaac-gym
+- Download and install Isaac Gym from https://developer.nvidia.com/isaac-gym
 ```bash
 cd isaacgym/python && pip install -e .
 ```
@@ -39,7 +39,7 @@ cd isaacgym/python && pip install -e .
 4. Install rsl_rl (PPO implementation)
 - Clone https://github.com/leggedrobotics/rsl_rl
 ```bash
-cd rsl_rl && git checkout v1.0.2 && pip install -e .
+cd rsl_rl && pip install -e .
 ``` 
 5. clone this repository
 ```bash
