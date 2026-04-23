@@ -1,36 +1,7 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: BSD-3-Clause
-# 
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright notice, this
-# list of conditions and the following disclaimer.
-#
-# 2. Redistributions in binary form must reproduce the above copyright notice,
-# this list of conditions and the following disclaimer in the documentation
-# and/or other materials provided with the distribution.
-#
-# 3. Neither the name of the copyright holder nor the names of its
-# contributors may be used to endorse or promote products derived from
-# this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-# Copyright (c) 2021 ETH Zurich, Nikita Rudin
-
 import numpy as np
 from numpy.random import choice
 from scipy import interpolate
+from collections import defaultdict
 
 from isaacgym import terrain_utils
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg
@@ -56,6 +27,8 @@ class Terrain:
         self.border = int(cfg.border_size/self.cfg.horizontal_scale)
         self.tot_cols = int(cfg.num_cols * self.width_per_env_pixels) + 2 * self.border
         self.tot_rows = int(cfg.num_rows * self.length_per_env_pixels) + 2 * self.border
+        self.name2cols = defaultdict(set)  # terrain type to column index
+        self.cols2id = []  # column index to terrain id
 
         self.height_field_raw = np.zeros((self.tot_rows , self.tot_cols), dtype=np.int16)
         if cfg.curriculum:
@@ -90,6 +63,8 @@ class Terrain:
 
                 terrain = self.make_terrain(choice, difficulty)
                 self.add_terrain_to_map(terrain, i, j)
+            self.name2cols[terrain.terrain_name].add(j)
+            self.cols2id.append(terrain.terrain_id)
 
     def selected_terrain(self):
         terrain_type = self.cfg.terrain_kwargs.pop('type')
@@ -118,29 +93,45 @@ class Terrain:
         stepping_stones_size = 1.5 * (1.05 - difficulty)
         stone_distance = 0.05 if difficulty==0 else 0.1
         gap_size = 1. * difficulty
-        pit_depth = 1. * difficulty
+        # pit_depth = 1. * difficulty # no pits
         if choice < self.proportions[0]:
+            terrain.terrain_name = "slope"
+            terrain.terrain_id = 0
             if choice < self.proportions[0]/ 2:
                 slope *= -1
             terrain_utils.pyramid_sloped_terrain(terrain, slope=slope, platform_size=3.)
         elif choice < self.proportions[1]:
+            terrain.terrain_name = "rough_slope"
+            terrain.terrain_id = 1
             terrain_utils.pyramid_sloped_terrain(terrain, slope=slope, platform_size=3.)
             terrain_utils.random_uniform_terrain(terrain, min_height=-0.05, max_height=0.05, step=0.005, downsampled_scale=0.2)
-        elif choice < self.proportions[3]:
-            if choice<self.proportions[2]:
+        elif choice < self.proportions[3]:  # down stairs
+            terrain.terrain_name = "stairs_down"
+            terrain.terrain_id = 3
+            if choice<self.proportions[2]:  # up stairs
+                terrain.terrain_name = "stairs_up"
+                terrain.terrain_id = 2
                 step_height *= -1
             terrain_utils.pyramid_stairs_terrain(terrain, step_width=0.31, step_height=step_height, platform_size=3.)
         elif choice < self.proportions[4]:
+            terrain.terrain_name = "obstacles"
+            terrain.terrain_id = 4
             num_rectangles = 20
             rectangle_min_size = 1.
             rectangle_max_size = 2.
             terrain_utils.discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min_size, rectangle_max_size, num_rectangles, platform_size=3.)
         elif choice < self.proportions[5]:
+            terrain.terrain_name = "stepping_stones"
+            terrain.terrain_id = 5
             terrain_utils.stepping_stones_terrain(terrain, stone_size=stepping_stones_size, stone_distance=stone_distance, max_height=0., platform_size=4.)
         elif choice < self.proportions[6]:
+            terrain.terrain_name = "gaps"
+            terrain.terrain_id = 6
             gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
-        else:
-            pit_terrain(terrain, depth=pit_depth, platform_size=4.)
+        else: # flat
+            terrain.terrain_name = "flat"
+            terrain.terrain_id = 7
+            pit_terrain(terrain, depth=0.0, platform_size=4.)
         
         return terrain
 

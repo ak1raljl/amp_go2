@@ -12,7 +12,7 @@ AMP implementation for go2 edu
 </div>
 
 
-**reference code:** [Amp for Hardware](https://github.com/escontra/AMP_for_hardware) , [rl_amp](https://github.com/fan-ziqi/rl_amp)
+**reference code:** [Amp for Hardware](https://github.com/escontra/AMP_for_hardware) , [rl_amp](https://github.com/fan-ziqi/rl_amp) , [go2_rl_gym](https://github.com/wty-yy/go2_rl_gym.git)
 
 **reference paper:**  [Adversarial Motion Priors Make Good Substitutes for Complex Reward Functions](https://arxiv.org/pdf/2203.15103)
 

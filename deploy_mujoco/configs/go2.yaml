@@ -1,6 +1,6 @@
 policy_path: "legged_gym/logs/go2_amp/exported/policies/policy_1.pt"
 
-xml_path: "deploy_mujoco/go2_description/flat.xml"
+xml_path: "deploy_mujoco/go2_description/scene_terrain.xml"
 
 simulation_duration: 60000000.0
 # Simulation time step
@@ -22,7 +22,7 @@ cmd_scale: [2.0, 2.0, 0.25]
 num_actions: 12
 num_obs: 45
 cmd_range:
-  - [-1.2, 1.5]
+  - [-1.2, 1.0]
   - [-0.8, 0.8]
   - [-1.0, 1.0]
 max_cmd: [2.0, 1.5, 2.5]

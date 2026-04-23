@@ -51,8 +51,7 @@ class Go2AMPCfg( LeggedRobotCfg ):
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete, flat]
         curriculum = True
         max_init_terrain_level = 5
-        terrain_proportions = [0.4, 0.4, 0.1, 0.1, 0.0]
-        # terrain_proportions = [0.5, 0.5, 0.0, 0.0, 0.0]
+        terrain_proportions = [0.1, 0.2, 0.25, 0.25, 0.2, 0.0, 0.0, 0.0]
         terrain_length = 8.0 # [m]
         terrain_width = 8.0 # [m]
         num_rows = 10 # number of terrain rows (levels)
@@ -106,7 +105,7 @@ class Go2AMPCfg( LeggedRobotCfg ):
             ang_vel_xy = -0.05
             dof_acc = -2.5e-7
             torques = -1e-4
-            base_height = -0.3
+            base_height = -1.0
             action_rate = -0.01
             collision = -1.0
             dof_pos_limits = -2.0

@@ -152,7 +152,7 @@ class LeggedRobot(BaseTask):
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         terminal_amp_states = self.get_amp_observations()[env_ids]
         self.reset_idx(env_ids)
-        self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
+        self.compute_observations()
 
         self.last_actions[:] = self.actions[:]
         self.last_dof_vel[:] = self.dof_vel[:]
@@ -187,7 +187,6 @@ class LeggedRobot(BaseTask):
         # randomization of the motor zero calibration for real machine
         if self.cfg.domain_rand.randomize_motor_zero_offset:
             self.motor_zero_offsets[env_ids] = torch_rand_float(self.cfg.domain_rand.motor_zero_offset_range[0], self.cfg.domain_rand.motor_zero_offset_range[1], (len(env_ids), self.num_actions), device=self.device)
-        
         
         # update curriculum
         if self.cfg.terrain.curriculum:
@@ -236,6 +235,14 @@ class LeggedRobot(BaseTask):
         self.reset_buf[env_ids] = 1
         # fill extras
         self.extras["episode"] = {}
+        if self.cfg.terrain.mesh_type in ['heightfield', 'trimesh']:
+            self.extras["episode"]['terrain_level_all'] = torch.mean(self.terrain_levels.float())
+            for name, cols in self.terrain.name2cols.items():
+                if isinstance(cols, set):
+                    cols = self.terrain.name2cols[name] = torch.tensor(list(cols), device=self.device)
+                self.extras["episode"]['terrain_level_' + name] = torch.mean(self.terrain_levels[torch.isin(self.terrain_types, cols)].float())
+        else:
+            self.extras["episode"]['terrain_level_all'] = 0.0
         for key in self.episode_sums.keys():
             self.extras["episode"]['rew_' + key] = torch.mean(self.episode_sums[key][env_ids]) / self.max_episode_length_s
             self.episode_sums[key][env_ids] = 0.
@@ -439,6 +446,8 @@ class LeggedRobot(BaseTask):
             self.measured_heights = self._get_heights()
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
             self._push_robots()
+        if self.cfg.terrain.measure_heights:
+            self.measured_heights = self._get_heights()
 
     def _resample_commands(self, env_ids):
         """ Randommly select commands of some environments
@@ -551,10 +560,12 @@ class LeggedRobot(BaseTask):
         """
         # base position
         root_pos = AMPLoader.get_root_pos_batch(frames)
-        if self.cfg.terrain.mesh_type == 'trimesh':
-            root_pos[:, :] = root_pos[:, :] + self.env_origins[env_ids, :]
+        root_pos[:, :2] = root_pos[:, :2] + self.env_origins[env_ids, :2]
+        if self.cfg.terrain.mesh_type == 'trimesh' and self.height_samples is not None:
+            ground_z = self._get_ground_height_at(root_pos[:, :2])
+            root_pos[:, 2] = root_pos[:, 2] + ground_z
         else:
-            root_pos[:, :2] = root_pos[:, :2] + self.env_origins[env_ids, :2]
+            root_pos[:, 2] = root_pos[:, 2] + self.env_origins[env_ids, 2]
         self.root_states[env_ids, :3] = root_pos
         # base velocities
         root_orn = AMPLoader.get_root_rot_batch(frames)
@@ -566,6 +577,17 @@ class LeggedRobot(BaseTask):
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
+
+    def _get_ground_height_at(self, xy_pos):
+        pts = xy_pos.clone()
+        pts += self.terrain.cfg.border_size
+        pts = (pts / self.terrain.cfg.horizontal_scale).long()
+        px = pts[:, 0].clamp(0, self.height_samples.shape[0] - 2)
+        py = pts[:, 1].clamp(0, self.height_samples.shape[1] - 2)
+        h1 = self.height_samples[px, py]
+        h2 = self.height_samples[px + 1, py]
+        h3 = self.height_samples[px, py + 1]
+        return torch.min(torch.min(h1, h2), h3).float() * self.terrain.cfg.vertical_scale
 
     def _push_robots(self):
         """ Random pushes the robots. Emulates an impulse by setting a randomized base velocity. 
@@ -673,6 +695,13 @@ class LeggedRobot(BaseTask):
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         if self.cfg.terrain.measure_heights:
             self.height_points = self._init_height_points()
+            x_points = self.height_points[0, :, 0]
+            y_points = self.height_points[0, :, 1]
+            x_mask = (x_points >= -0.2) & (x_points <= 0.2)  # 0.4m length
+            y_mask = (y_points >= -0.15) & (y_points <= 0.15)  # 0.3m width
+            self.base_height_scan_mask = (x_mask & y_mask).float()
+            self.num_base_height_scan_points = self.base_height_scan_mask.sum()
+            assert self.num_base_height_scan_points > 0, "No height scan points within the specified area."
         self.measured_heights = 0
 
         # joint positions offsets and PD gains
@@ -997,10 +1026,13 @@ class LeggedRobot(BaseTask):
         if not self.cfg.terrain.measure_heights:
             return self.root_states[:, 2]
         # 根据高度扫描点计算base link到地面估计高度
-        estimated_ground_z = self.measured_heights.mean(dim=1)
+        masked_heights = self.measured_heights * self.base_height_scan_mask.unsqueeze(0)
+        sum_heights = masked_heights.sum(dim=1)
+        estimated_ground_z = sum_heights / self.num_base_height_scan_points
 
         base_z = self.root_states[:, 2] 
-        return base_z - estimated_ground_z
+        base_height = base_z - estimated_ground_z  # (N,)
+        return base_height
 
     def _reward_base_height(self):
         base_height = self._get_base_height()
