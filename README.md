@@ -36,13 +36,11 @@ cd isaacgym/python && pip install -e .
 ```
 - Try running an example `cd examples && python 1080_balls_of_solitude.py`
 - For troubleshooting check docs `isaacgym/docs/index.html`
-4. Install rsl_rl
-```bash
-cd rsl_rl && pip install -e .
-``` 
-5. clone this repository
+4. clone this repository
 ```bash
 git clone https://github.com/ak1raljl/amp_go2.git
+cd rsl_rl && pip install -e .
+cd ../legged_gym
 cd legged_gym && pip install -e .
 ```
 6. dependency
