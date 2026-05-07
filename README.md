@@ -69,7 +69,6 @@ conda deactivate
 python3 datasets/record_legged_control_amp.py   \
 --out datasets/go2_motion/go2_forward.txt       \
 --rate 50                                       \
---rate 50                                       \
 --duration 5                                    \
 --cmd-vel 1.0 0.0 0.0                           \
 --zero-root-xy
@@ -77,7 +76,6 @@ python3 datasets/record_legged_control_amp.py   \
 # left 0.6 m/s, 5s
 python3 datasets/record_legged_control_amp.py   \
 --out datasets/go2_motion/go2_turn_left.txt     \
---rate 50                                       \
 --rate 50                                       \
 --duration 5                                    \
 --cmd-vel 0.0 0.0 0.6                           \
